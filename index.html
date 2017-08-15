@@ -1,0 +1,674 @@
+<html> 
+<head> 
+<title>My Card Game</title> 
+<script type="text/javascript" src="js/prototype.js"></script> 
+<!--
+<script type="text/javascript" src="jmootools-1.2-core-yc.js"></script>
+-->
+
+<script type="text/javascript" src="js/scriptaculous.js"></script>
+
+
+<style type="text/css"> 
+#debug {
+    display: none;
+    color: gray;
+}
+body {
+    background-color: #326343;
+}
+#header {
+    text-align: center;
+}
+#footer {
+    text-align: center;
+}
+#content {
+    width: 800px;
+    height: 500px;
+    text-align: center;
+}
+#felt {
+    position: relative;
+    left: 0px;
+    top: 0px;
+    width: 700px;
+    height: 500px;
+    background-color: #092D1F;
+    overflow: hidden;
+}
+#help_box {
+    position: relative;
+    top: 200px;
+    color: white;
+}
+#toolbar {
+    float: left;
+}
+.card {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    border: transparent 2px solid;
+}
+.card[selected="1"] {
+    border: yellow 2px dashed;
+}
+#selection_box {
+    position: absolute;
+    border: yellow 2px dashed;
+}
+#botoneraJugador {
+	float: right;
+	position: relative;
+	left: 0px;
+    	top: 450px;
+    	width: 150px;
+    	height: 500px;
+    	overflow: hidden;
+	font-family : Arial,Verdana;
+	font-weight : bold;
+	font-size : 8px;
+	color : #FEFEFE;
+}
+</style> 
+<script type="text/javascript"> 
+var cards;
+var cartasJ1, cartasJ2, cartasMesa;
+var cartasGanadasJ1, cartasGanadasJ2;
+var filaJ1, filaJ2, colIni;
+var filaMesa, colMesa;
+var mano;
+var jugadores, jugador;
+var estado;
+var velocidadCartas;
+
+
+debug = function(message) {
+    timestamp = new Date();
+    $('debug').innerHTML = timestamp + ": " + message;
+}
+info = function(message) {
+    $('info').innerHTML = message;
+}
+
+Array.prototype.remove=function(s){
+  for(i=0;i<this .length;i++){
+    if(s==this[i]) this.splice(i, 1);
+  }
+}
+
+escoba = function(cjugador, cmesa) {
+	var aux = parseInt($(cjugador).getAttribute('valor'));
+	cmesa.each(function(card){
+		aux += parseInt($(card).getAttribute('valor'));	
+			});
+	this.cartaJugador = cjugador;
+	this.cartasMesa = cmesa;
+	this.suma = aux;
+	this.numCartas = cmesa.length+1;	
+}
+
+jugador = function() {
+    this.puntuacion = 0;
+    this.escobas = 0;
+    this.cartas = new Array();
+    this.cartasGanadas = new Array();
+    this.jugada = function(){
+	    if (this.cartas.length==0)
+		    repartirCartasALosJugadores()
+	    else{
+	    	var i, j, k, a, b;
+	    	var escobas = new Array();
+	    	i = 0;
+	    	while (i<this.cartas.length){
+		    j = 0;
+		    while (j<cartasMesa.length){
+			a = parseInt($(this.cartas[i]).getAttribute('valor'));
+			b = parseInt($(cartasMesa[j]).getAttribute('valor'));
+			if ((a+b) == 15){
+				escobas.push(new escoba(this.cartas[i],new Array(cartasMesa[j])));
+			}
+			j++;
+		    }
+		    i++;
+	    	}
+		if (escobas.length==0){
+			cartasMesa.push(this.cartas.pop());
+		}else{
+			this.cartasGanadas.push(escobas[0].cartaJugador);
+			this.cartas.remove(escobas[0].cartaJugador);
+			this.cartasGanadas.push(escobas[0].cartasMesa[0]);
+			cartasMesa.remove(escobas[0].cartasMesa);
+		}
+		colocarCartasMesa();
+		pausa(2000);
+		colocarCartasJ1();
+		pausa(2000);
+		colocarCartasJ2();
+		pausa(2000);
+		iniciarJugadaHumano();
+	    }
+    	}
+}
+
+setup = function() {
+    filaJ1 = 10;
+    filaJ2 = 380;
+    colIni = 230;
+    filaMesa = 150;
+    colMesa = 140;
+
+    cards = new Array();
+    cartasJ1 = new Array();
+    cartasJ2 = new Array();
+    cartasMesa = new Array();
+    cartasGanadasJ1 = new Array();
+    cartasGanadasJ2 = new Array();
+    jugadores = new Array();
+
+    
+ 
+    jugadores.push(new jugador());
+    jugadores.push(new jugador());
+
+    estado = "parado";
+    velocidadCartas = 0.25;
+
+    var suits = new Array("o","c","e","b");
+    suits.each(function(suit){
+        for(var rank=1; rank<=10; rank++) {
+            card = suit + rank;
+            cards.push(card);
+        }
+    });
+    addall();
+    selection_surface_element = $('felt');
+}
+addcard = function(card) {
+    //var url = "images/"+card+".gif";
+    var url = "images/back.gif";
+    felt = $('felt');
+    var newcard = document.createElement("img");
+	newcard.setAttribute('class','card');
+	newcard.setAttribute('id',card);
+	newcard.setAttribute('src',url);
+	newcard.setAttribute('onload','doneloading("'+card+'")');
+	newcard.setAttribute('onclick','singleclick("'+card+'")');
+	newcard.setAttribute('ondblclick','doubleclick("'+card+'")');
+	newcard.setAttribute('selected','0');
+	newcard.setAttribute('valor',card.substr(1));
+	felt.appendChild(newcard);
+
+	$('botoneraJugador').hide();
+}
+addall = function() {
+    cards.each(addcard);
+}
+doneloading = function(card) {
+}
+isfaceup = function(card) {
+    url = $(card).src.slice(-8);
+    if( url == "back.gif" ) {
+        return 0;
+    }else{
+        return 1;
+    }
+}
+faceup = function(card) {
+    $(card).src = "images/"+card+".gif";
+}
+facedown = function(card) {
+    $(card).src = "images/back.gif";
+}
+
+activarBotonJugarBaza = function(){
+	$('botonJugarBaza').src = "images/JugarBazaBtn.png";
+	$('botonJugarBaza').onClick = "procesarJugadaHumano();";
+}
+
+desactivarBotonJugarBaza = function(){
+	$('botonJugarBaza').src = "images/JugarBazaBnw.png";
+	$('botonJugarBaza').onClick = "";
+}
+
+flip = function(card) {
+    var originalSize = new Object(); //Element.getDimensions(card);
+    originalSize.width=$(card).clientWidth;
+    originalSize.height=$(card).clientHeight;
+    poptotop(card);
+    new Effect.Parallel( [
+        new Effect.Scale($(card), 0, {
+            scaleX:true,
+            scaleY:false,
+            //scaleMode: {originalHeight: originalSize.height, originalWidth: originalSize.width},
+            scaleMode:'contents',
+	    queue: 'end',
+            sync:true
+        }),
+        new Effect.Move($(card), {
+              x:originalSize.width/2,
+              y:0,
+              sync:true
+        })
+        ], {
+        duration: 0.25,
+        afterFinish: function(){
+            if( isfaceup(card) ) {
+                facedown(card);
+            }else{
+                faceup(card);
+            }
+            new Effect.Parallel( [
+                new Effect.Scale($(card), 100, {
+                    scaleX:true,
+                    scaleY:false,
+                    scaleFrom: window.opera ? 0 : 1,
+                    scaleMode:'contents',
+                    scaleMode: {originalHeight: originalSize.height, originalWidth: originalSize.width},
+                    sync:true
+                }),
+                new Effect.Move($(card), {
+                    x:-originalSize.width/2,
+                    y:0,
+                    sync:true
+                })
+                ], {
+                duration: 0.25,
+                afterFinish: function() {
+                    $(card).style.width = originalSize.width;
+                    $(card).style.height = originalSize.height;
+                    }
+                }
+            );
+        }
+    });
+}
+var maxZ = 53;
+
+selected = function() {
+    var list = new Array();
+    cards.each(function(card){
+        if(isselected(card)) {
+            list.push(card);
+        }
+    });
+    return list;
+}
+
+sumaDeCartas = function(cartas){
+	var suma = 0;
+	cartas.each(function(carta){
+		suma += parseInt($(carta).getAttribute('valor'));
+		});
+	return suma;
+}
+
+center_of_selected = function() {
+    var middleX = 0;
+    var middleY = 0;
+    var count = 0;
+    selected().each(function(card){
+        card = $(card);
+        var offsets = Position.cumulativeOffset(card);
+        middleX += offsets[0];
+        middleY += offsets[1];
+        count++;
+    });
+    var offsets = Position.cumulativeOffset(selection_surface_element);
+    middleX = (middleX / count) - offsets[0];
+    middleY = (middleY / count) - offsets[1];
+    return {x:middleX, y:middleY};
+}
+
+poptotop = function(card) {
+    $(card).style.zIndex = maxZ;
+    maxZ++;
+}
+
+faceup_selected = function() {
+    selected().each(function(card){
+        if (!isfaceup(card)) {
+            flip(card);
+        }
+    });
+}
+
+facedown_selected = function() {
+    selected().each(function(card){
+        if (isfaceup(card)) {
+            flip(card);
+        }
+    });
+}
+singleclick = function(card) {
+//    deselect_all();
+      if (!isselected(card)){    
+	select(card);
+    	poptotop(card);
+    	new Effect.Fade($('help_item_1'));
+	}else{
+	deselect(card);
+	}
+}
+doubleclick = function(card) {
+    flip(card);
+    new Effect.Fade($('help_item_2'));
+}
+isselected = function(card) {
+    if( $(card).getAttribute('selected') == '1' ) {
+        return true;
+    }
+    return false;
+}
+select = function(card) {
+    $(card).setAttribute('selected','1');
+    $(card).style.borderColor = 'yellow';
+    if (sumaDeCartas(selected())==15) 
+	    activarBotonJugarBaza()
+    else
+	    desactivarBotonJugarBaza();
+}
+select_all = function() {
+    cards.each(function(card){
+        select(card);
+    });
+}
+select_region = function(x,y,w,h) {
+    cardsize =cartasJ2 = new Array(); Element.getDimensions($(cards[0]));
+    cards.each(function(card){
+        var offsets = Position.cumulativeOffset($(card));
+    	var cardx = offsets[0];
+    	var cardy = offsets[1];
+    	if ((cardx < x+w) && (cardx+cardsize.width > x)
+    	 && (cardy < y+h) && (cardy+cardsize.height > y)) {
+    	    select(card);
+    	}
+    });
+}
+deselect = function(card) {
+    $(card).setAttribute('selected','0');
+    $(card).style.borderColor = 'transparent';
+}
+deselect_all = function() {
+    cards.each(function(card){
+        deselect(card);
+    });
+}
+showinfo = function(card){
+    info("card "+card+" x:"+$(card).style.left+" y:"+$(card).style.top);
+}
+hideinfo = function(card){
+    info("");
+}
+
+invertirMano = function(){
+	if (mano == 0)
+		return 1
+	else
+		return 0;
+}
+
+colocarCartasMesa = function(){
+	var i,x,y;
+	i = 0;
+	cartasMesa.each(function(card){
+//		faceup(card);
+		cardEle = $(card);
+		x = filaMesa + ((i % 5)*75);
+		if (cartasMesa.length > 5)
+			y = colMesa + ((Math.floor(i/5)) * 110)
+		else
+			y = colMesa + 55;
+		new Effect.Move(cardEle, {
+			x:x,
+			y:y,
+			mode:'absolute',
+			duration: velocidadCartas,
+			queue: 'end',
+			afterfinish: faceup(card)});
+
+//		mover (card, x, y);
+
+		i++;
+    		});
+}
+
+
+mover = function (elemento, x, y){
+new Effect.Move(elemento, {
+			x: x,
+			y: y,
+			mode:'absolute',
+			duration: velocidadCartas,
+			queue: 'end'});
+}
+
+
+colocarCartasJ1 = function(){
+	var i,x,y;
+	i = 0;
+	jugadores[0].cartas.each(function(card){
+		card = $(card);
+		
+		new Effect.Move(card, {
+			x:colIni + ((i % 5)*75),
+			y:filaJ1,
+			mode:'absolute',
+			queue: 'end',
+			duration: velocidadCartas});
+
+//		mover (card, colIni + ((i % 5)*75), filaJ1);
+
+		i++;
+		});
+
+	jugadores[0].cartasGanadas.each(function(card){
+		cardId = $(card);
+		new Effect.Move(cardId, {
+			x:500,
+			y:filaJ1,
+			mode:'absolute',
+			duration: velocidadCartas,
+			afterFinish: facedown(card),
+			queue: 'end'});
+
+//		mover (cardId, 500, filaJ1);
+//		facedown(card);
+
+		});
+
+}
+
+colocarCartasJ2 = function(){
+	var i,x,y;
+
+	jugadores[1].cartasGanadas.each(function(card){
+		cardId = $(card);
+		new Effect.Move(cardId, {
+			x:500,
+			y:filaJ2,
+			mode:'absolute',
+			queue: 'end',
+			duration: velocidadCartas,
+			afterFinish: facedown(card)});
+
+
+//		mover (cardId, 500, filaJ2);
+//		facedown(card);
+	});
+
+	i = 0;
+	jugadores[1].cartas.each(function(card){
+		cardId = $(card);
+		new Effect.Move(cardId, {
+			x:colIni + ((i % 5)*75),
+			y:filaJ2,
+			mode:'absolute',
+			queue: 'end',
+			duration: velocidadCartas,
+			afterfinish: faceup(card)});
+
+//		mover (cardId, colIni + ((i % 5)*75), filaJ2);
+//		faceup(card);
+
+		i++;
+	});
+
+}
+
+repartirCartasAlCentro = function(){
+	info("repartir al centro");
+	for (i=0;i<4;i++){
+		cartasMesa.push(cards.pop());
+	}
+	colocarCartasMesa();
+}
+
+repartirCartasALosJugadores = function(){
+	info("repartir a los jugadores");
+	if (cards.length>0){
+		for (i=0;i<3;i++){
+			jugadores[mano].cartas.push(cards.pop());
+			jugadores[invertirMano()].cartas.push(cards.pop());
+		}
+		colocarCartasJ1();
+		colocarCartasJ2();
+	}else 	puntuarMano();
+}
+
+
+
+puntuarMano = function(){
+	jugadores.each(function(jugador){
+			jugador.puntuacion += jugador.escobas;
+			jugador.escobas=0;
+			});
+}
+
+recogerCartas = function(){
+	jugadores.each(function(jugador){
+		jugador.cartas.each(function(card){
+			cards.push(jugador.cartas.pop());
+			});
+		jugador.cartasGanadas.each(function(card){
+			cards.push(jugador.cartasGanadas.pop());
+		});
+	});
+	cartasMesa.each(function(card){
+		cards.push(jugador.cartas.pop());
+	});
+}
+
+barajear = function() {
+    var y;
+    cards.sort(function() {return 0.5 - Math.random()}); //Array elements now scrambled
+    select_all();
+    facedown_selected();
+    selected().each(function(card){
+	card = $(card);
+	if (mano == 1)
+		y = 0;
+	else 
+		y = 380;
+
+        new Effect.Move(card, {
+            x:0,
+            y:y,
+            mode:'absolute',
+            duration: velocidadCartas,
+            afterFinish: function(){card.style.zIndex = Math.floor(Math.random()*52);}
+            });
+    });
+    maxZ = 53;
+    deselect_all();
+}
+
+iniciarPartida = function(){
+	estado = "inicioPartida";
+	$('botoneraJugador').hide();
+	jugadores.each(function(jugador){
+			jugador.puntuacion = 0;
+			jugador.escobas = 0;
+			});
+	mano = Math.round(Math.random());
+	iniciarMano();
+}
+
+iniciarMano = function(){
+	estado = "inicioMano";
+	jugadores.each(function(jugador){
+			jugador.escobas = 0;
+			});
+	recogerCartas();
+	barajear();
+	mano = invertirMano();
+	repartirCartasALosJugadores();
+	repartirCartasAlCentro();
+	if (mano==0){
+		estado = "jugadaOrdenador";
+		jugadores[0].jugada();
+		iniciarJugadaHumano();
+	}else{
+		estado = "jugadaHumano";
+		iniciarJugadaHumano();
+	}
+}
+
+iniciarJugadaHumano = function(){
+//	if (jugadores[1].cartas.length==0){
+//		repartirCartasALosJugadores();
+//	}
+//	    else{
+//		jugadores[1].jugada();
+//	    }
+//	procesarJugadaHumano();
+	$('botoneraJugador').show();
+}
+
+procesarJugadaHumano= function(){
+	//	jugadores[0].jugada();
+	desactivarBotonJugarBaza();
+	$('botoneraJugador').hide();
+}
+
+pausa = function (milisec){
+var d = new Date();
+var begin = d.getTime();
+
+while ((d.getTime() - begin ) > milisec){
+	// nothing...
+	}
+}
+
+
+</script> 
+</head> 
+<body onload="setup()"> 
+<div id="content"> 
+    <div id="header"> 
+        <h1>Experimental Card Game</h1> 
+    </div> 
+    <div id="toolbar"> 
+    <form action='' method='get'> 
+        <input type='button' value='Select All' onclick='select_all()'/><br/> 
+        <input type='button' value='Select None' onclick='deselect_all()'/><br/> 
+        <input type='button' value='Face Up' onclick='faceup_selected()'/><br/> 
+        <input type='button' value='Face Down' onclick='facedown_selected()'/><br/> 
+	<input type='button' value='Iniciar mano' onclick='iniciarPartida()'/><br/>
+    </form> 
+    </div> 
+    <div id="felt"> 
+        <div id="selection_box"></div> 
+        <div id="help_box"></div> 
+	<div id="botoneraJugador"> <img id='botonJugarBaza' src="images/jugarBazaBnw.png"> </div>
+
+    </div> 
+    <div id="footer"> 
+        <div id="info"></div> 
+        <div id="debug"></div> 
+    </div> 
+</div> 
+</body> 
+</html>
+
